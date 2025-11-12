@@ -1,30 +1,26 @@
+# Parameters configuration file for What-if Andes project
 
-default:
+hydro:
+  min_data: 50 # in %
+  drought_threshold: 0.3 
 
-  general: 
-    version: "test"
+glacier: 
+  min_area: 1
+  rgi_version: 60
+  
+dir:
+  andeangc: "/home/rooda/OneDrive/Projects/AndeanGC/"
+  pipeline: "/home/rooda/Pipeline/Whatif-Andes"
+  data: "/home/rooda/Datasets"
 
-  hydro:
-    min_data: 50 # in %
-    drought_threshold: 0.3 
-
-  glacier: 
-    min_area: 1
-    rgi_version: 60
-    
-  dir:
-    data: "/home/rooda/OneDrive/Projects/AndeanStreamflow/"
-    pipeline: "/home/rooda/Pipeline/IceBuffer"
-    raw: "/home/rooda/Datasets"
-
-  time:
-    ref_start: "2000-01-01"
-    ref_end: "2023-12-31" # problem with 2024 data with OGGM
-    future_start: "2025-01-01"
-    future_end: "2099-12-31"
-    
-  area: 
-    max_lat: 12
-    min_lat: -56
-    max_lon: -66
-    min_lon: -79
+time:
+  ref_start: "2000-01-01"
+  ref_end: "2023-12-31" # problem with 2024 data with OGGM
+  future_start: "2025-01-01"
+  future_end: "2099-12-31"
+  
+area: 
+  max_lat: +12
+  min_lat: -56
+  max_lon: -66
+  min_lon: -79
