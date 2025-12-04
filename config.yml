@@ -1,11 +1,12 @@
 # Parameters configuration file for What-if Andes project
 
 hydro:
-  min_data: 50 # in %
-  drought_threshold: 0.3 
+  min_data: 0.66 # in %
+  min_glacier_area: 0.1 # in %
+  drought_threshold: 0.15
 
 glacier: 
-  min_area: 1
+  min_area: 1 # in km2
   rgi_version: 60
   
 dir:
@@ -15,12 +16,12 @@ dir:
 
 time:
   ref_start: "2000-01-01"
-  ref_end: "2023-12-31" # problem with 2024 data with OGGM
+  ref_end: "2024-12-31" 
   future_start: "2025-01-01"
   future_end: "2099-12-31"
   
 area: 
-  max_lat: +12
+  max_lat: -5 # northern Peru -> Ecuador excluded
   min_lat: -56
   max_lon: -66
   min_lon: -79
