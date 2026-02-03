@@ -1,99 +1,118 @@
 """Module for identifying drought events in time series data."""
 import pandas as pd
-from tqdm import tqdm
 
-def find_droughts(df, quantile, threshold_df=None):
+def find_droughts(xarray_data, threshold_quantile=0.1, suffix="", threshold_df=None):
     """
-    Identifies drought events in a time series based on a quantile threshold.
+    Calculate low-flow metrics per gauge, including frequency of drought events
+    and drought intensity (deficit / duration).
 
     Parameters:
-    df (pd.DataFrame): A Pandas DataFrame with a datetime index and streamflow
-                       values in columns, where each column represents a gauge.
-                       This DataFrame is used to identify the events.
-    quantile (float): The quantile (e.g., 0.1 for 10th percentile) to
-                      determine the threshold.
-    threshold_df (pd.DataFrame, optional): A DataFrame with a similar structure
-                                           to `df`, used for calculating the
-                                           quantile threshold. If None, `df` is
-                                           used for both event identification
-                                           and threshold calculation.
+    - xarray_data: xarray DataArray with dimensions ("date", "gauge_id")
+    - threshold_quantile: quantile used for threshold (e.g., 0.1 for Q90)
+    - suffix: suffix string appended to metric names
+    - threshold_df: optional xarray DataArray used to calculate thresholds
+                   (if None, uses xarray_data)
 
     Returns:
-    pd.DataFrame: A DataFrame where each row represents a drought event from
-                  any gauge, with columns for start date, end date, duration,
-                  severity, min_value, and gauge_id.
+    - DataFrame with drought metrics per gauge.
     """
-    df.index = pd.to_datetime(df.index)
+    
     if threshold_df is None:
-        threshold_df = df
-    else:
-        threshold_df.index = pd.to_datetime(threshold_df.index)
+        threshold_df = xarray_data
+    
+    results = []
+    
+    for gauge_id in xarray_data.gauge_id.values:
+        flow_series = xarray_data.sel(gauge_id=gauge_id).to_series()
         
-    all_events = []
+        # 1) Calculate threshold
+        threshold_val = threshold_df.sel(gauge_id=gauge_id).to_series()
+        threshold_val = threshold_val.quantile(threshold_quantile)
+        Q90 = flow_series.quantile(threshold_quantile)
 
-    for gauge_id in tqdm(df.columns):
-        
-        series = df[gauge_id]
-        threshold_series = threshold_df[gauge_id]
-        threshold = threshold_series.quantile(quantile)
-        below_threshold = series < threshold
-        
-        # Detect start and end of drought events
-        drought_starts = below_threshold & ~below_threshold.shift(1, fill_value=False)
-        drought_ends = ~below_threshold & below_threshold.shift(1, fill_value=False)
+        # Metrics
+        # 2-3) Min values 
+        min_30day = flow_series.rolling(window=30, min_periods=1, center=True).mean().resample("YE").min().mean()
+        min_value = flow_series.resample("YE").min().mean()
 
-        start_dates = series.index[drought_starts]
-        end_dates = series.index[drought_ends]
-
-        # Handle open-ended droughts (if the series ends during a drought)
-        if len(start_dates) > len(end_dates):
-            end_dates = end_dates.append(pd.Index([series.index[-1]]))
-        
-        # Handle cases where a drought starts but doesn't end within the series
-        if len(start_dates) < len(end_dates):
-            start_dates = start_dates.insert(0, series.index[0])
+        # 4) Day-of-year of annual minimum flow (averaged across years)
+        annual_min_doy = flow_series.resample("YE").apply(
+            lambda s: s.idxmin().timetuple().tm_yday if s.notna().any() and not s.empty else pd.NA
+        )
+        doy_min = annual_min_doy.mean()
 
 
-        gauge_events = []
-        for start, end in zip(start_dates, end_dates):
-            # Slice the series for the event
-            event_values = series[start:end]
-            if event_values.empty:
-                continue
-            duration = (end - start).days + 1
-            severity = (threshold - event_values[event_values < threshold]).sum()
-            min_value = event_values.min()
+        ## 4) Count drought events
+        is_drought = (flow_series <= threshold_val)
 
-            gauge_events.append({
-                "gauge_id": gauge_id,
-                "start_date": start,
-                "end_date": end,
-                "duration": duration,
-                "severity": severity,
-                "min_value": min_value
-            })
-        
-        if gauge_events:
-            all_events.extend(gauge_events)
+        events_per_year = is_drought & (~is_drought.shift(1, fill_value=False))
+        events_per_year = events_per_year.resample("YE").sum().mean()
 
-    # Create a DataFrame with all events
-    return pd.DataFrame(all_events)
+        # 5-7) Drought severity and intensity
+        drought_values = flow_series.where(is_drought)
+        severity = float((threshold_val - drought_values).sum(skipna=True))
+        duration_total = is_drought.sum()
+        intensity = float(severity / duration_total)
 
+        results.append({
+            'gauge_id': str(gauge_id),
+            f'Q90{suffix}': float(Q90),  
+            f'annual_min_value{suffix}': float(min_value),
+            f'min_30day{suffix}': float(min_30day),
+            f'doy_min{suffix}': int(doy_min),
+            f'events_per_year{suffix}': float(events_per_year),
+            f'severity{suffix}': severity,
+            f'total_duration{suffix}': duration_total,
+            f'intensity{suffix}': intensity,
+        })
+    
+    df = pd.DataFrame(results).set_index('gauge_id')
+    return df
 
-def drought_area_timeseries(droughts_ref, metadata):
+def drought_area_timeseries(xarray_data, metadata, threshold_quantile=0.1, threshold_df=None):
     """
     Returns a time series of total area affected by droughts.
+    
+    Parameters:
+    - xarray_data: xarray DataArray with dimensions ("date", "gauge_id")
+    - metadata: DataFrame with basin_area indexed by gauge_id
+    - threshold_quantile: quantile used for threshold (e.g., 0.1 for Q90)
+    - threshold_df: optional xarray DataArray used to calculate thresholds
+                   (if None, uses xarray_data)
+    
+    Returns:
+    - DataFrame with dates as index and latitude as columns, containing drought areas
     """
-    # Create a DataFrame with all drought periods for each basin
-    records = []
-    for _, row in tqdm(droughts_ref.iterrows(), total=droughts_ref.shape[0]):
-        gauge_id = row['gauge_id']
-        area = metadata.loc[gauge_id, 'basin_area']
-        # Create a date range for the drought period
-        dates = pd.date_range(row['start_date'], row['end_date'])
-        for date in dates:
-            records.append({'date': date, 'gauge_id': gauge_id, 'area': area})
-    df_area = pd.DataFrame(records)
-    # Group by date and sum the area
-    ts = df_area.groupby('date')['area'].sum()
+    if threshold_df is None:
+        threshold_df = xarray_data
+    
+    # Vectorized threshold calculation
+    thresholds = threshold_df.quantile(threshold_quantile, dim='date')
+    
+    # Create drought mask
+    is_drought = xarray_data <= thresholds
+    
+    # Convert to DataFrame for easier manipulation
+    drought_df = is_drought.to_dataframe(name='is_drought').reset_index()
+    
+    # Add metadata
+    drought_df = drought_df.merge(
+        metadata[['basin_area', 'basin_cenlat']], 
+        left_on='gauge_id', 
+        right_index=True
+    )
+    
+    # Filter only drought days and calculate area
+    drought_df = drought_df[drought_df['is_drought']]
+    drought_df['lat'] = drought_df['basin_cenlat'].astype(int)
+    
+    # Pivot to time series format
+    ts = drought_df.pivot_table(
+        index='date', 
+        columns='lat', 
+        values='basin_area', 
+        aggfunc='sum',
+        fill_value=0
+    ).astype(int)
+    
     return ts
