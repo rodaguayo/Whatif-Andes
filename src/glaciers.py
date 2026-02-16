@@ -1,3 +1,11 @@
+"""
+Glacier data processing and analysis module.
+
+This module provides functions for processing OGGM (Open Global Glacier Model) data,
+including climate data preparation, hydrological variable calculations, and
+basin-level aggregation.
+"""
+
 import pandas as pd
 import numpy as np
 import geopandas as gpd
