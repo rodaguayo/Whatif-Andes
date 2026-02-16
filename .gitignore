@@ -12,6 +12,7 @@ __pycache__/
 *.jpg
 *.gif
 *.svg
+*.pptx
 
 # Reports
 *.docx
