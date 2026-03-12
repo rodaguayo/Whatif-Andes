@@ -3,7 +3,7 @@
 hydro:
   min_data: 0.66 # in %
   min_glacier_area: 0.1 # in %
-  drought_threshold: 0.15
+  drought_threshold: 0.10 # quantile for drought definition
 
 glacier: 
   min_area: 1 # in km2
@@ -25,3 +25,25 @@ area:
   min_lat: -56
   max_lon: -66
   min_lon: -79
+
+regions:
+  Outer tropics: [-8, -20]
+  Desert Andes: [-20, -30]
+  Central Andes: [-30, -35]
+  North Patagonia: [-35, -45]
+  South Patagonia: [-45, -52]
+  Fuegian Andes: [-52, -56]
+
+misc:
+  rolling_avg: 30 # visualization
+
+scenarios:
+  - id: '15C'
+    name: '+1.5ºC (N=7)'
+    color: '#2E86AB'
+  - id: '28C'
+    name: '+2.8ºC (N=5)'
+    color: '#F18F01'
+  - id: '40C'
+    name: '+4.0ºC (N=6)'
+    color: '#C7231D'
