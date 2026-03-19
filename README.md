@@ -1,34 +1,40 @@
 # Whatif-Andes
 
 ## Description
-[Add a brief description of the Whatif-Andes project, its purpose, and main objectives]
+Whatif-Andes is a reproducible workflow to assess climate-change what-if impacts on Andean water resources, combining glacier modelling (OGGM), hydrological modelling (LSTM), drought diagnostics, and water stress analyses.
 
 ## Project Structure
 
 ```
-.
-├── data/               # Data directories
-│   ├── admin/         # Administrative data
-│   ├── climate/       # Climate data
-│   ├── glacier/       # Glacier data
-│   ├── hydro/         # Hydrological data
-│   └── performance/   # Performance data
-├── figures/           # Jupyter notebooks for figure generation
-│   ├── fig01_model_performance.ipynb
-│   ├── fig02_performance_droughts.ipynb
-│   ├── fig03_runoff_contribution.ipynb
-│   ├── fig04_oggm_whatif.ipynb
-│   ├── fig05_time_series.ipynb
-│   ├── fig06_droughts_spatial.ipynb
-│   ├── fig07_warming_levels.ipynb
-│   ├── fig08_time_series_area.ipynb
-│   ├── fig09_mass_conservation.ipynb
-│   ├── fig10_time_series_ensemble.ipynb
-│   └── figure04_maps.ipynb
-├── modelling/         # Modelling scripts and outputs
-├── processing/        # Data processing scripts
-├── src/              # Source code
-└── config.yml        # Configuration file
+├── config.yml
+├── data/
+├── preprocessing/
+│   ├── climate_scenarios.ipynb
+│   ├── glacier_modelling_inputs_v15.ipynb
+│   ├── glacier_modelling_inputs_v16.ipynb
+│   ├── hydro_modelling_inputs.ipynb
+│   ├── target_basins_attributes.ipynb
+│   ├── target_basins_selection.ipynb
+│   ├── training_validation_splitting.ipynb
+│   └── water_demand.ipynb
+├── modelling/
+│   ├── hydrological_modelling_LSTM.yml
+│   ├── hydro_modelling_LSTM_finetuning.ipynb
+│   ├── hydro_modelling_LSTM_runs.ipynb
+│   ├── glacier_modelling_OGGM_v15.ipynb
+│   └── glacier_modelling_OGGM_v16.ipynb
+├── postprocessing/
+│   ├── drought_analysis.ipynb
+│   ├── glacier_modelling_outputs.ipynb
+│   └── water_stress_analysis.ipynb
+├── figures/
+│   ├── fig_*.ipynb
+│   ├── table_summary.ipynb
+│   └── generate_all_figures.py
+└── src/
+    ├── droughts.py
+    ├── glaciers.py
+    └── utils.py
 ```
 
 ## Requirements
@@ -44,22 +50,13 @@
 The project uses [config.yml](config.yml) for configuration settings.
 
 ## Figures
-The [figures/](figures/) directory contains Jupyter notebooks for generating all figures used in the analysis:
-- Model performance analysis
-- Drought analysis (performance and spatial)
-- Runoff contribution analysis
-- OGGM what-if scenarios
-- Time series analyses
-- Warming level comparisons
-- Mass conservation validation
-- Ensemble results
-
+Figure notebooks are in `figures/`. Batch execution is handled by `figures/generate_all_figures.py` (`figures/*.ipynb`).
 
 ## Citation
 [Add citation information if applicable]
 
 ## Contact
-[Add contact information]
+Rodrigo Aguayo (VUB)
 
 ## Acknowledgments
 [Add acknowledgments if applicable]
