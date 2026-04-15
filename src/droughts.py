@@ -115,4 +115,8 @@ def drought_area_timeseries(xarray_data, metadata, threshold_quantile=0.1, thres
         fill_value=0
     ).astype(int)
     
+    # Reindex to include all dates with zero fill
+    full_date_range = pd.date_range(start=xarray_data.date.min().values, end=xarray_data.date.max().values, freq='D')
+    ts = ts.reindex(full_date_range, fill_value=0)
+    
     return ts
