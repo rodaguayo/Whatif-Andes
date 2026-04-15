@@ -6,6 +6,7 @@ __pycache__/
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 */.ipynb_checkpoints/*
+.vscode/
 
 # Images
 *.png
@@ -13,6 +14,9 @@ __pycache__/
 *.gif
 *.svg
 *.pptx
+
+# Tables 
+*.csv
 
 # Reports
 *.docx
