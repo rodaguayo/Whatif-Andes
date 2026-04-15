@@ -240,3 +240,24 @@ def load_and_convert_csv_to_geocube(file, var_name, years=None, shape=None, res=
     xr_da = xr_ds.to_array(dim='time', name=var_name)
     xr_da = xr_da.drop_vars('spatial_ref', errors='ignore')
     return xr_da
+
+def weighted_mean_by_lat(gdf, weight_col="basin_area", lat_col="basin_cenlat_rounded"):
+    """
+    Compute weighted mean of all numeric columns grouped by rounded latitude.
+    
+    Parameters:
+        gdf: GeoDataFrame with the data
+        weight_col: column to use as weights (default: 'basin_area')
+        lat_col: column to group by (default: 'basin_cenlat_rounded')
+    
+    Returns:
+        pd.DataFrame with weighted mean values indexed by latitude
+    """
+    numeric_cols = gdf.select_dtypes(include='number').columns.tolist()
+    cols = [col for col in numeric_cols if col not in [weight_col, lat_col]]
+
+    def _weighted_mean(group):
+        weights = group[weight_col]
+        return pd.Series({col: (group[col] * weights).sum() / weights.sum() for col in cols})
+    
+    return gdf.groupby(lat_col).apply(_weighted_mean, include_groups=False)
