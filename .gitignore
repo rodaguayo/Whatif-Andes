@@ -23,8 +23,7 @@ __pycache__/
 *.txt
 
 # pixi local environment
-.pixi/*
-!.pixi/config.toml
+.pixi/
 
 # Data directories
 /data

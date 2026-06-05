@@ -1,19 +1,16 @@
 [workspace]
-authors = ["Rodrigo Aguayo <rodrigo.aguayo@vub.be>"]
 channels = ["conda-forge"]
-name = "whatif-andes"
 platforms = ["linux-64"]
-version = "0.1.0"
 
 [tasks]
 
 [dependencies]
-python = ">=3.10"
+python = ">3.12,<3.14"
 pip = "*"
 numpy = "*"
 pandas = "*"
 scipy = "*"
-matplotlib = "*"
+matplotlib-base = "*"
 scikit-learn = "*"
 pillow = "*"
 xarray = "*"
@@ -29,7 +26,7 @@ plotly = "*"
 nbformat = "*"
 pytorch = "*"
 xarray-spatial = "*"
-ipykernel = ">=7.2.0,<8"
+ipykernel = ">=7.2.0"
 
 [pypi-dependencies]
 neuralhydrology = "*"
