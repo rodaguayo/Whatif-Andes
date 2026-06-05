@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "whatif-andes"
+version = "0.1.0"
+description = "Reproducible workflow to assess climate-change what-if impacts on Andean water resources"
+license = { text = "GPL-3.0-only" }
+authors = [{ name = "Rodrigo Aguayo", email = "rodrigo.aguayo@vub.be" }]
+readme = "README.md"
+requires-python = ">=3.10"
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = [
+  "E501",    # line too long (handled by formatter)
+  "N802",    # function name should be lowercase (scientific conventions)
+  "N803",    # argument name should be lowercase
+  "N806",    # variable in function should be lowercase
+  "N815",    # mixedCase variable in class scope
+  "UP035",   # deprecated import (numpy/pandas compatibility)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+strict = false
+ignore_missing_imports = true
+warn_unused_ignores = true
+exclude = [
+  "data/",
+  "figures/archive/",
+]

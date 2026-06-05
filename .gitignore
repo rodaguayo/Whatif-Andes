@@ -20,8 +20,16 @@ __pycache__/
 
 # Reports
 *.docx
-*txt
+*.txt
+
+# pixi local environment
+.pixi/*
+!.pixi/config.toml
 
 # Data directories
 /data
 /figures/archive
+
+# Build artifacts
+whatif_andes.egg-info/
+

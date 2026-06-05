@@ -38,26 +38,71 @@ Whatif-Andes is a reproducible workflow to assess climate-change what-if impacts
 ```
 
 ## Requirements
-[List software dependencies and requirements]
+
+- **Pixi** ([install guide](https://pixi.sh/latest/))
+- Hardware with CUDA GPU recommended for LSTM training
+
+All dependencies are listed in [`pixi.toml`](pixi.toml).
+Key packages: PyTorch, NeuralHydrology, OGGM, Xarray, GeoPandas.
 
 ## Installation
-[Provide installation instructions]
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/rodaguayo/Whatif-Andes.git
+cd Whatif-Andes
+
+# 2. Create the environment,  install the project, and activate the env
+pixi install
+pixi shell
+```
+
+The AndeanGC, ERA5, DEM, glacier outlines, and HydroATLAS datasets must be downloaded
+separately (see the `data/` directory structure in the notebooks). Update the paths
+in [`config.yml`](config.yml) to point to your dataset locations.
 
 ## Usage
-[Explain how to use the project, run analyses, generate figures, etc.]
 
-## Configuration
-The project uses [config.yml](config.yml) for configuration settings.
+Workflow notebooks are organized into four stages and should be run in order:
 
-## Figures
-Figure notebooks are in `figures/`. Batch execution is handled by `figures/generate_all_figures.py` (`figures/*.ipynb`).
+```bash
+# Stage 1 — Preprocessing
+preprocessing/climate_scenarios.ipynb
+preprocessing/target_basins_selection.ipynb
+preprocessing/target_basins_attributes.ipynb
+preprocessing/glacier_modelling_inputs_v15.ipynb
+preprocessing/glacier_modelling_inputs_v16.ipynb
+preprocessing/hydro_modelling_inputs.ipynb
+preprocessing/training_validation_splitting.ipynb
+preprocessing/water_demand_correction.ipynb
+preprocessing/water_demand_formatting.ipynb
+
+# Stage 2 — Modelling
+modelling/glacier_modelling_OGGM_v15.ipynb
+modelling/glacier_modelling_OGGM_v16.ipynb
+modelling/hydro_modelling_LSTM_finetuning.ipynb
+modelling/hydro_modelling_LSTM_runs.ipynb
+
+# Stage 3 — Postprocessing
+postprocessing/glacier_modelling_outputs.ipynb
+postprocessing/drought_analysis.ipynb
+postprocessing/water_stress_analysis.ipynb
+
+# Stage 4 — Figures (batch)
+python figures/generate_all_figures.py
+```
+
 
 ## Citation
-[Add citation information if applicable]
+
+If you use this workflow, please cite the associated publication:
+[TBD].  
 
 ## Contact
-Rodrigo Aguayo (VUB)
+
+Rodrigo Aguayo — Vrije Universiteit Brussel (VUB)  
 
 ## Acknowledgments
-[Add acknowledgments if applicable]
+
+This project was developed with support from [funding sources — TBD].  
 ```

@@ -6,13 +6,12 @@ hydro:
   drought_threshold: 0.10 # quantile for drought definition
 
 glacier: 
-  min_area: 1 # in km2
   rgi_version: 60
   
 dir:
-  andeangc: "/home/rooda/OneDrive/Projects/AndeanGC/"
-  pipeline: "/home/rooda/Pipeline/Whatif-Andes"
-  data: "/home/rooda/Datasets"
+  andeangc: "../AndeanGC/"
+  pipeline: "."
+  data: "../Datasets"
 
 time:
   ref_start: "2000-01-01"
