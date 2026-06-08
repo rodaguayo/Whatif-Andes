@@ -1,12 +1,21 @@
 import subprocess
-import yaml
 import glob
+import os
 from tqdm import tqdm
 
-with open("config.yml") as f:
-    config = yaml.safe_load(f)
+
+from src.utils import load_config
+config = load_config()
 
 notebooks = sorted(glob.glob("figures/*.ipynb"))
+figures = sorted([f for f in glob.glob("figures/*.svg") if "slide" not in f and "workflow" not in f])
+
+# Ask user if they want to backup existing figures
+backup = input("Rename existing figures to _old for comparison? (y/n): ").lower() == 'y'
+
+if backup:
+    for fig in figures:
+        os.rename(fig, fig.replace('.svg', '_old.svg'))
 
 for nb in tqdm(notebooks):
     print(f"Running {nb}")
@@ -14,6 +23,8 @@ for nb in tqdm(notebooks):
         "jupyter", "nbconvert",
         "--to", "notebook",
         "--execute",
-        "--output-dir", "executed_notebooks",
+        "--stdout",
         nb
-    ], check=True)
+    ], check=True,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.STDOUT)
