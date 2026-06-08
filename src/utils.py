@@ -8,19 +8,61 @@ This module provides functions for:
 - Extracting time series from rasters
 """
 
-import numpy as np
-import pandas as pd
-import xarray as xr
-import pickle
-from tqdm import tqdm
 from glob import glob
 import yaml
 import os
 from pathlib import Path
-import xagg as xa # faster for large netcdf files
+
+def load_config(config_path="config.yml", chdir=True):
+    """Load project configuration, changing to project root if needed.
+
+    Parameters
+    ----------
+    config_path : str, optional
+        Path to config file relative to project root, by default "config.yml"
+    chdir : bool, optional
+        Whether to change to the project root directory, by default True
+
+    Returns
+    -------
+    dict
+        Parsed configuration
+    """
+    root = Path(__file__).resolve().parent.parent
+    if chdir:
+        os.chdir(root)
+    with open(root / config_path) as f:
+        config = yaml.safe_load(f)
+    if "dir" in config:
+        config["dir"] = {k: os.path.expanduser(v) for k, v in config["dir"].items()}
+    return config
 
 def process_outputs(path_run, period, best_epoch, metrics=None):
+    """
+    Run neuralhydrology evaluation and collect simulated discharge time series.
 
+    Parameters
+    ----------
+    path_run : Path
+        Path to a neuralhydrology run directory containing ``config.yml``.
+    period : str
+        Evaluation period passed to the tester (e.g. ``"test"`` or ``"validation"``).
+    best_epoch : int
+        Model epoch to load weights from.
+    metrics : list of str, optional
+        Metric names to compute and return alongside the time series.
+
+    Returns
+    -------
+    xr.DataArray or tuple[xr.DataArray, pd.DataFrame]
+        Simulated discharge (mm/d, clipped to 0) as a DataArray with a
+        ``gauge_id`` dimension.  When *metrics* is provided, a DataFrame of
+        per-basin metric values is returned as a second element.
+    """
+
+    import xarray as xr
+    import pandas as pd
+    from tqdm import tqdm
     from neuralhydrology.evaluation import get_tester
     from neuralhydrology.utils.config import Config
 
@@ -61,6 +103,7 @@ def aggregate_by_main_basin(data, shape):
     pd.DataFrame or xr.DataArray
         Aggregated time series by main basin (columns/coord: main_bas, index/coord: date).
     """
+    import pandas as pd
     if isinstance(data, pd.DataFrame): # DataFrame case 
         
         data = data * shape.basin_area * 1e6 / (1000 * 86400)
@@ -70,7 +113,9 @@ def aggregate_by_main_basin(data, shape):
         return data
     
     else:  # xarray DataArray case
-       
+        import xarray as xr
+        import pandas as pd
+        
         # Convert to m3/s
         area = xr.DataArray(shape.basin_area.values, coords={"gauge_id": shape.index})
         data = data * area * 1e6 / (1000 * 86400)
@@ -88,11 +133,28 @@ def aggregate_by_main_basin(data, shape):
     
 
 def extract_attributes(raster, shapefile, attribute_name, fun="mean"):
-    
-    from exactextract import exact_extract # faster for large rasters 
+    """
+    Extract zonal statistics from a raster for each basin polygon.
 
-    if isinstance(raster, str):
-        raster = xr.open_dataset(raster)
+    Parameters
+    ----------
+    raster : xr.DataArray
+        Raster dataset with spatial dimensions named ``lon``/``lat`` or ``x``/``y``.
+    shapefile : gpd.GeoDataFrame
+        Basin polygons with a ``gauge_id`` column used as the index.
+    attribute_name : str
+        Name assigned to the extracted column in the returned GeoDataFrame.
+    fun : str, optional
+        Aggregation function passed to ``exactextract`` (e.g. ``"mean"``, ``"sum"``),
+        by default ``"mean"``.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        *shapefile* with an additional column named *attribute_name*.
+    """
+    import xarray as xr
+    from exactextract import exact_extract
 
     if "lon" in raster.dims and "lat" in raster.dims:
         raster = raster.sel(lon=slice(shapefile.total_bounds[0], shapefile.total_bounds[2]),
@@ -112,8 +174,30 @@ def extract_attributes(raster, shapefile, attribute_name, fun="mean"):
 
     return shape
 
-xa.set_options(impl='for_loop')
 def extract_timeseries(raster, shapefile, time_period=None):
+    """
+    Extract area-weighted time series from a raster for each basin polygon.
+
+    Parameters
+    ----------
+    raster : xr.DataArray
+        Raster with ``lon``/``lat`` spatial dimensions and a ``time`` or ``date``
+        dimension.
+    shapefile : gpd.GeoDataFrame
+        Basin polygons with a ``gauge_id`` column.
+    time_period : tuple of str, optional
+        ``(start, end)`` date strings used to subset the raster along the time
+        dimension before aggregation.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with dates as index and ``gauge_id`` values as columns,
+        rounded to 3 decimal places.
+    """
+    import pandas as pd
+    import xarray as xr
+    import xagg as xa
     
     raster = raster.sel(lon=slice(shapefile.total_bounds[0], shapefile.total_bounds[2]),
                         lat=slice(shapefile.total_bounds[1], shapefile.total_bounds[3]))
@@ -124,7 +208,7 @@ def extract_timeseries(raster, shapefile, time_period=None):
         raster = raster.sel({time_dim: slice(pd.to_datetime(time_period[0]), pd.to_datetime(time_period[1]))})
     
     weightmap = xa.pixel_overlaps(raster, shapefile, impl='for_loop', silent=True)
-    ds = xa.aggregate(raster, weightmap, impl = "numba", silent = True)
+    ds = xa.aggregate(raster, weightmap, impl="numba", silent=True)
     ds = ds.to_dataframe().astype("float32")[raster.name]
     ds = ds.round(3)
     ds = ds.unstack('poly_idx')
@@ -136,19 +220,21 @@ def extract_timeseries(raster, shapefile, time_period=None):
 
 def compile_settings(working_dir):
     """
-    Load YAML settings files and convert to DataFrame.
-    
+    Collect ``settings_daily.yml`` files from an OGGM working directory into a DataFrame.
+
     Parameters
     ----------
     working_dir : str
-        Root directory to search for settings_daily.yml files.
-    
+        Root directory to search recursively for ``settings_daily.yml`` files.
+
     Returns
     -------
     pd.DataFrame
-        Settings data with rgi_id column.
+        Flattened (json-normalized) settings for all glaciers found, with an
+        additional ``rgi_id`` column derived from the parent directory name.
     """
-    
+    import pandas as pd
+
     file_paths = glob(working_dir + '/**/settings_daily.yml', recursive=True)
     records = []
     
@@ -156,20 +242,32 @@ def compile_settings(working_dir):
         with open(fp, 'r') as fh:
             data = yaml.safe_load(fh)
         
-        # add file metadata
         data['rgi_id'] = os.path.basename(os.path.dirname(fp))
         records.append(data)
     
     df_settings = pd.json_normalize(records)
     return df_settings
 
-def find_best_epoch(path_run, n_epoch, metric = "KGE"):
+def find_best_epoch(path_run, n_epoch, metric="KGE"):
     """
-    Find the best epoch based on validation metric.
-    
-    Returns:
-        int: Best epoch number
+    Identify the training epoch with the highest median validation metric.
+
+    Parameters
+    ----------
+    path_run : Path
+        neuralhydrology run directory containing per-epoch validation CSV files
+        at ``validation/model_epoch{NNN}/validation_metrics.csv``.
+    n_epoch : int
+        Total number of epochs to evaluate.
+    metric : str, optional
+        Column name of the metric to maximise, by default ``"KGE"``.
+
+    Returns
+    -------
+    int
+        1-based epoch number with the highest median *metric* value.
     """
+    import pandas as pd
 
     metrics = []
     for epoch in range(1, n_epoch + 1):
@@ -182,14 +280,28 @@ def find_best_epoch(path_run, n_epoch, metric = "KGE"):
 
 def reshape_dataset(initial_dataset):
     """
-    Reshape the dataset from (month, grid_num) to (month, lat, lon).
+    Reshape a flat (point-based) xarray Dataset into a gridded DataArray.
 
-    Parameters:
-        initial_dataset (xr.Dataset): Input dataset with 'variable', 'lat', 'lon' variables.
+    Converts a Dataset with 1-D ``lat``/``lon`` coordinates (one row per grid
+    cell) into a 3-D ``(date, lat, lon)`` DataArray.  The ``month`` dimension is
+    renamed to ``date`` and aligned to a monthly ``DatetimeIndex`` starting
+    1971-01-01.
 
-    Returns:
-        xr.DataArray: Reshaped DataArray with dimensions (date, lat, lon).
+    Parameters
+    ----------
+    initial_dataset : xr.Dataset
+        Dataset with ``lat``, ``lon``, and ``month`` coordinates and a single
+        data variable.
+
+    Returns
+    -------
+    xr.DataArray
+        Gridded DataArray with dimensions ``(date, lat, lon)``.
     """
+    import numpy as np
+    import pandas as pd
+    import xarray as xr
+
     lats = np.unique(initial_dataset['lat'].values)
     lons = np.unique(initial_dataset['lon'].values)
     nlat = len(lats)
@@ -218,9 +330,34 @@ def reshape_dataset(initial_dataset):
 
 def load_and_convert_csv_to_geocube(file, var_name, years=None, shape=None, res=None):
     """
-    Load commune CSV, convert from m3/s to mm/year, join to shape and convert to xarray via make_geocube.
-    Returns (geo_df, xarray.DataArray).
+    Load water-demand CSV data, convert units, and rasterise to a geocube DataArray.
+
+    The CSV is expected to have comunas as rows and years as columns.  Values
+    are converted from m³/s to mm/year using each commune's area before being
+    rasterised at the requested resolution.
+
+    Parameters
+    ----------
+    file : str, Path, or pd.DataFrame
+        Path to a CSV file (index = ``cod_comuna``, columns = years) or a
+        pre-loaded DataFrame with the same structure.
+    var_name : str
+        Name assigned to the output DataArray.
+    years : list, optional
+        Column names (year labels) to rasterise.
+    shape : gpd.GeoDataFrame, optional
+        Commune polygons with an ``area_m2`` column, joined to the DataFrame
+        before rasterisation.
+    res : int or float, optional
+        Output raster resolution passed to ``make_geocube``.
+
+    Returns
+    -------
+    xr.DataArray
+        Rasterised DataArray with a ``time`` dimension corresponding to *years*.
     """
+    import pandas as pd
+    import xarray as xr
     from geocube.api.core import make_geocube
 
     if isinstance(file, (str, Path)):
@@ -243,16 +380,27 @@ def load_and_convert_csv_to_geocube(file, var_name, years=None, shape=None, res=
 
 def weighted_mean_by_lat(gdf, weight_col="basin_area", lat_col="basin_cenlat_rounded"):
     """
-    Compute weighted mean of all numeric columns grouped by rounded latitude.
-    
-    Parameters:
-        gdf: GeoDataFrame with the data
-        weight_col: column to use as weights (default: 'basin_area')
-        lat_col: column to group by (default: 'basin_cenlat_rounded')
-    
-    Returns:
-        pd.DataFrame with weighted mean values indexed by latitude
+    Compute area-weighted means of all numeric columns grouped by latitude band.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame or pd.DataFrame
+        Input data containing numeric columns, a weight column, and a latitude
+        grouping column.
+    weight_col : str, optional
+        Column used as weights, by default ``"basin_area"``.
+    lat_col : str, optional
+        Column used to form latitude groups, by default
+        ``"basin_cenlat_rounded"``.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame indexed by *lat_col* with weighted-mean values for every
+        numeric column (excluding *weight_col* and *lat_col* themselves).
     """
+    import pandas as pd
+
     numeric_cols = gdf.select_dtypes(include='number').columns.tolist()
     cols = [col for col in numeric_cols if col not in [weight_col, lat_col]]
 
