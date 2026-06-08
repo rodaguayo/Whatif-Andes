@@ -10,8 +10,8 @@ glacier:
   
 dir:
   andeangc: "../AndeanGC/"
-  pipeline: "."
-  data: "../Datasets"
+  pipeline: "~/Pipeline/what-if-andes/"
+  data: "~/Datasets"
 
 time:
   ref_start: "2000-01-01"
