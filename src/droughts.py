@@ -1,7 +1,7 @@
 """Module for identifying drought events in time series data."""
 import pandas as pd
 
-def find_droughts(xarray_data, threshold_quantile=0.1, suffix="", threshold_df=None):
+def find_droughts(xarray_data, threshold_quantile=0.1, suffix="", threshold_df=None, pooling_window=None, min_duration=None, seasonal_threshold=False):
     """
     Calculate low-flow metrics per gauge, including frequency of drought events
     and drought intensity (deficit / duration).
@@ -12,6 +12,17 @@ def find_droughts(xarray_data, threshold_quantile=0.1, suffix="", threshold_df=N
     - suffix: suffix string appended to metric names
     - threshold_df: optional xarray DataArray used to calculate thresholds
                    (if None, uses xarray_data)
+    - pooling_window: int or None. If set, inter-event gaps of at most this
+                      number of days are filled, merging nearby drought events
+                      (inter-event time pooling). If None, no pooling is applied.
+    - min_duration: int or None. If set, drought events shorter than this number
+                    of days are removed from the drought mask. If None, all events
+                    are kept.
+    - seasonal_threshold: bool. If True, a daily variable threshold is used:
+                          the quantile is computed per day-of-year from a 30-day
+                          centred moving average of the threshold series, giving
+                          a smooth seasonal envelope. If False (default), a
+                          single global threshold is used.
 
     Returns:
     - DataFrame with drought metrics per gauge.
@@ -26,9 +37,18 @@ def find_droughts(xarray_data, threshold_quantile=0.1, suffix="", threshold_df=N
         flow_series = xarray_data.sel(gauge_id=gauge_id).to_series()
         
         # 1) Calculate threshold
-        threshold_val = threshold_df.sel(gauge_id=gauge_id).to_series()
-        threshold_val = threshold_val.quantile(threshold_quantile)
+        threshold_series = threshold_df.sel(gauge_id=gauge_id).to_series()
         Q90 = flow_series.quantile(threshold_quantile)
+
+        if seasonal_threshold:
+            threshold_ma = threshold_series.rolling(window=30, min_periods=1, center=True).mean()
+            daily_q = threshold_ma.groupby(threshold_ma.index.dayofyear).quantile(threshold_quantile)
+            threshold_val = pd.Series(
+                flow_series.index.dayofyear.map(daily_q).values,
+                index=flow_series.index
+            )
+        else:
+            threshold_val = threshold_series.quantile(threshold_quantile)
 
         # Metrics
         # 2-3) Min values 
@@ -42,24 +62,60 @@ def find_droughts(xarray_data, threshold_quantile=0.1, suffix="", threshold_df=N
         doy_min = annual_min_doy.mean()
 
 
-        ## 4) Count drought events
+        ## 5) Count drought events
         is_drought = (flow_series <= threshold_val)
+
+        # Inter-event time pooling: merge drought events separated by short gaps
+        if pooling_window is not None:
+            drought_array = is_drought.values.copy()
+            n = len(drought_array)
+            i = 0
+            while i < n:
+                if not drought_array[i]:
+                    j = i
+                    while j < n and not drought_array[j]:
+                        j += 1
+                    # Only fill if gap is between two drought periods (not at edges)
+                    if (j - i) <= pooling_window and i > 0 and j < n:
+                        drought_array[i:j] = True
+                    i = j
+                else:
+                    i += 1
+            is_drought = pd.Series(drought_array, index=is_drought.index)
+
+        # Minimum duration filtering: remove events shorter than min_duration days
+        if min_duration is not None:
+            drought_array = is_drought.values.copy()
+            n = len(drought_array)
+            i = 0
+            while i < n:
+                if drought_array[i]:
+                    j = i
+                    while j < n and drought_array[j]:
+                        j += 1
+                    if (j - i) < min_duration:
+                        drought_array[i:j] = False
+                    i = j
+                else:
+                    i += 1
+            is_drought = pd.Series(drought_array, index=is_drought.index)
 
         events_per_year = is_drought & (~is_drought.shift(1, fill_value=False))
         events_per_year = events_per_year.resample("YE").sum().mean()
 
         # 5-7) Drought severity and intensity
         drought_values = flow_series.where(is_drought)
-        severity = float((threshold_val - drought_values).sum(skipna=True))
+        deficit = (threshold_val - drought_values).clip(lower=0)
+        severity = float(deficit.sum(skipna=True))
         duration_total = is_drought.sum()
-        intensity = float(severity / duration_total)
+        intensity = float(severity / duration_total) if duration_total > 0 else float("nan")
 
         results.append({
             'gauge_id': str(gauge_id),
             f'Q90{suffix}': float(Q90),  
             f'annual_min_value{suffix}': float(min_value),
             f'min_30day{suffix}': float(min_30day),
-            f'doy_min{suffix}': int(doy_min),
+            f'doy_min{suffix}': int(doy_min) if pd.notna(doy_min) else None,
             f'events_per_year{suffix}': float(events_per_year),
             f'severity{suffix}': severity,
             f'total_duration{suffix}': duration_total,
