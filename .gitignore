@@ -32,3 +32,8 @@ __pycache__/
 # Build artifacts
 whatif_andes.egg-info/
 
+# External cloned repos
+/massbalance-sandbox
+
+# v16 files and directories
+**/*v16*.ipynb
