@@ -9,7 +9,7 @@ description = "Reproducible workflow to assess climate-change what-if impacts on
 license = { text = "GPL-3.0-only" }
 authors = [{ name = "Rodrigo Aguayo", email = "rodrigo.aguayo@vub.be" }]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 [tool.setuptools.packages.find]
 include = ["src*"]
 
