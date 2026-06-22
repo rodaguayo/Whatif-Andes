@@ -6,6 +6,7 @@ This module provides functions for:
 - Aggregating data by main basin
 - Extracting attributes from rasters
 - Extracting time series from rasters
+- Assigning geographic regions based on latitude bands
 """
 
 from glob import glob
@@ -409,3 +410,28 @@ def weighted_mean_by_lat(gdf, weight_col="basin_area", lat_col="basin_cenlat_rou
         return pd.Series({col: (group[col] * weights).sum() / weights.sum() for col in cols})
     
     return gdf.groupby(lat_col).apply(_weighted_mean, include_groups=False)
+
+
+def assign_region(lat, regions):
+    """
+    Assign a region label based on latitude.
+
+    Parameters
+    ----------
+    lat : float
+        Latitude value to assign to a region.
+    regions : dict
+        Dictionary mapping region names to (north, south) latitude
+        boundaries. Each entry should be in the form
+        ``{region_name: (northern_bound, southern_bound)}``.
+
+    Returns
+    -------
+    str or None
+        The region name if *lat* falls within its boundaries, otherwise
+        ``None``.
+    """
+    for region, (north, south) in regions.items():
+        if south <= lat <= north:
+            return region
+    return None
