@@ -43,6 +43,15 @@ def scenario_colors(cfg):
     return [s["color"] for s in cfg["scenarios"]]
 
 
+# Distinct marker symbols for the (at most 6) regions in cfg['regions'].
+REGION_SYMBOLS = ["circle", "square", "diamond", "triangle-up", "triangle-down", "star"]
+
+
+def region_symbols(cfg):
+    """Region name -> marker symbol, in cfg['regions'] order."""
+    return {region: REGION_SYMBOLS[i % len(REGION_SYMBOLS)] for i, region in enumerate(cfg["regions"])}
+
+
 # House-style template: dotted white gridlines on the light-blue plot background,
 # outside ticks, no zerolines, Arial. Figure-specific fig.update_xaxes/yaxes(...)
 # calls only need to set what's actually different (title, range, dtick, ...).
