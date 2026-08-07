@@ -75,7 +75,10 @@ def process_outputs(path_run, period, best_epoch, metrics=None):
     data = tester.evaluate(epoch=best_epoch, save_results=False, save_all_output=False, metrics=metrics)
 
     for basin_id, dataset_xr in tqdm(data.items(), leave=False):
-        q_sim = dataset_xr['1D']['xr'].isel(time_step=0).drop_vars('time_step').q_mm_sim.clip(0)
+        # time_step=-1 is the last day of each sequence (label 0). Equivalent to isel(0) when
+        # predict_last_n=1, but correct also when predict_last_n>1, where isel(0) would pick
+        # the oldest prediction of the window and misalign the series against the date coord.
+        q_sim = dataset_xr['1D']['xr'].isel(time_step=-1).drop_vars('time_step').q_mm_sim.clip(0)
         time_series.append(q_sim)
         basin_ids.append(basin_id)
         
