@@ -23,7 +23,6 @@ CATEGORIES = {
         "postprocessing/glacier_modelling_outputs.ipynb",
     ]),
     "Hydrological modelling": sorted([
-        "preprocessing/hydro_modelling_inputs.ipynb",
         "modelling/hydro_modelling_LSTM_runs.ipynb",
         "postprocessing/drought_analysis.ipynb",
         "postprocessing/water_stress_analysis.ipynb",
