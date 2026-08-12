@@ -1,0 +1,110 @@
+# general settings
+experiment_name: Whatif-Andes
+data_dir: /home/rooda/Pipeline/what-if-andes//lstm/data
+run_dir: /home/rooda/Pipeline/what-if-andes/lstm/runs
+dataset: generic
+device: cuda:0
+head: regression
+metrics:
+  - NSE
+  - KGE
+  - Pearson-r
+  - Beta-KGE
+  - Alpha-NSE
+optimizer: AdamW
+seed: 123
+loss: nse
+epochs: 20
+
+# hyperparameters
+batch_size: 2048
+hidden_size: 64
+learning_rate:
+  0: 0.001
+  10: 0.0005
+  16: 0.0001
+output_dropout: 0.4 # inert: HybridModel never instantiates nn.Dropout, only cudalstm/ealstm/... do
+initial_forget_bias: 3
+seq_length: 270
+
+# input settings
+dynamic_inputs:
+  - prcp
+  - tas
+  - ep
+static_attributes:
+  - basin_cenlat
+  - basin_cenlon
+  - basin_area
+  - slope_mean
+  - elev_std
+  - shrubs_veg_cover
+  - forest_cover
+  - herbaceous_veg_cover
+  - glacier_area_RGI60
+  - prcp_mean_ERA5
+  - prcp_pci_ERA5
+  - ev_mean_ERA5
+  - solid_prcp_ERA5
+  - frac_snow_ERA5
+target_variables:
+  - q_mm
+clip_targets_to_zero:
+  - q_mm
+
+# model-specific settings
+model: hybrid_model
+conceptual_model: SHM_glacier_snow_routing
+custom_normalization:
+  prcp_copy1:
+    centering:
+    scaling:
+  ep_copy1:
+    centering:
+    scaling:
+  tasmin_copy1:
+    centering:
+    scaling:
+  tasmax_copy1:
+    centering:
+    scaling:
+  gmelt_historical_copy1:
+    centering:
+    scaling:
+  q_mm:
+    centering:
+    scaling:
+duplicate_features:
+  - prcp
+  - ep
+  - tasmin
+  - tasmax
+  - gmelt_historical
+dynamic_conceptual_inputs:
+  - prcp_copy1
+  - ep_copy1
+  - tasmin_copy1
+  - tasmax_copy1
+  - gmelt_historical_copy1
+train_basin_file: modelling/basins_training.txt
+train_end_date: 31/12/2024
+train_start_date: 01/01/2000
+validation_basin_file: modelling/basins_validation.txt
+validation_end_date: 31/12/2024
+validation_start_date: 01/01/2000
+test_basin_file: modelling/basins_test.txt
+test_end_date: 31/12/2024
+test_start_date: 01/01/2000
+
+# misc settings
+predict_last_n: 1
+save_weights_every: 1
+output_activation: linear
+clip_gradient_norm: 1
+num_workers: 8
+log_interval: 5
+log_n_figures: 0
+log_tensorboard: true
+validate_every: 1
+validate_n_random_basins: 9999
+save_validation_results: true
