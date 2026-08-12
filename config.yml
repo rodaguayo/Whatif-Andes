@@ -4,12 +4,14 @@ hydro:
   min_data: 0.66 # in %
   min_glacier_area: 0.1 # in %
   drought_threshold: 0.10 # quantile for drought definition
+  drought_pooling_window: 14 # days for pooling window
+  drought_min_duration: 7 # minimum drought duration in days
 
 glacier: 
   rgi_version: 60
   
 dir:
-  andeangc: "../AndeanGC/"
+  andeangc: "../AndeanGC/data/v10/final"
   pipeline: "~/Pipeline/what-if-andes/"
   data: "~/Datasets"
 
