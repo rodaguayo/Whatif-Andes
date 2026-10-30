@@ -21,6 +21,7 @@ __pycache__/
 # Reports
 *.docx
 *.txt
+*.md
 
 # pixi local environment
 .pixi/
