@@ -22,8 +22,8 @@ from tqdm import tqdm
 
 # Default forcing variables and file naming templates
 CLIMATE_VARS = ["tasmax", "tasmin", "tas", "ep", "prcp"]
-ANDEANGC_CLIMATE = "climate/historical/AndeanGC_{var}_ERA5_1960_2024.parquet"
-HYDROATLAS_CLIMATE = "data/climate/HydroAtlas_{var}_ERA5_1990_2024.parquet"
+ANDEANGC_CLIMATE = "climate/historical/AndeanGC_{var}_ERA5.parquet"
+HYDROATLAS_CLIMATE = "data/climate/HydroAtlas_{var}_ERA5.parquet"
 HYDROATLAS_BASINS = "data/hydro/basins_hydroATLAS_lev08.gpkg"
 GLACIER_DIR = "data/glacier"
 GLACIER_PATTERN = "*historical*.nc"
@@ -78,7 +78,7 @@ def build_attributes(cfg, output_dir=None):
         Attributes indexed by ``gauge_id`` (AndeanGC basins first, then the
         HydroATLAS target basins).
     """
-    metadata_ggc = pd.read_csv(Path(cfg["dir"]["andeangc"]) / "dataset/AndeanGC_metadata.csv", index_col=0)
+    metadata_ggc = pd.read_csv(Path(cfg["dir"]["andeangc"]) / "AndeanGC_metadata.csv", index_col=0)
     metadata_all = gpd.read_file(HYDROATLAS_BASINS).drop(columns=["geometry"]).set_index("gauge_id")
     metadata = pd.concat([metadata_ggc, metadata_all])
 
@@ -109,7 +109,7 @@ def build_streamflow(cfg, metadata):
     xr.DataArray
         Discharge named ``q_mm`` with dims ``("date", "basin_id")``.
     """
-    data = pd.read_csv(Path(cfg["dir"]["andeangc"]) / "dataset/AndeanGC_data_1950_2024_qc.csv",
+    data = pd.read_csv(Path(cfg["dir"]["andeangc"]) / "AndeanGC_data_qc.csv",
                        index_col=0, parse_dates=True)
     data = data.loc[cfg["time"]["ref_start"]:cfg["time"]["ref_end"]]
     data = (data * _M3S_TO_MMD) / (metadata.basin_area * _KM2_TO_M2)

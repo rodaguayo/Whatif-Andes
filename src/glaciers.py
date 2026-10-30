@@ -33,6 +33,10 @@ def create_OGGM_climate(prcp, temp, hgt, output_path, y0=None, y1=None):
     temp = xr.open_dataset(temp)
     hgt = xr.open_dataset(hgt)
 
+    # the ERA5 1960-2025 files name their coordinates latitude/longitude
+    prcp = prcp.rename({k: v for k, v in {"latitude": "lat", "longitude": "lon"}.items() if k in prcp.dims})
+    temp = temp.rename({k: v for k, v in {"latitude": "lat", "longitude": "lon"}.items() if k in temp.dims})
+
     # Subset time period if y0 and y1 are provided
     if y0 is not None and y1 is not None:
         prcp = prcp.sel(time=slice(str(y0), str(y1)))

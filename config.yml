@@ -11,14 +11,14 @@ glacier:
   rgi_version: 60
   
 dir:
-  andeangc: "../AndeanGC/data/v10/final"
+  andeangc: "../AndeanGC/data/v12"
   pipeline: "~/Pipeline/what-if-andes/"
   data: "~/Datasets"
 
 time:
   ref_start: "2000-01-01"
-  ref_end: "2024-12-31" 
-  future_start: "2025-01-01"
+  ref_end: "2025-12-31"
+  future_start: "2026-01-01"
   future_end: "2099-12-31"
   
 area: 
