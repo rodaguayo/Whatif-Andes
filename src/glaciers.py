@@ -11,9 +11,9 @@ import numpy as np
 import geopandas as gpd
 from tqdm import tqdm
 import xarray as xr
-import xarray_regrid
 
-variables = ["melt_off_glacier_daily", "melt_on_glacier_daily", "liq_prcp_off_glacier_daily", "liq_prcp_on_glacier_daily"]
+variables = ["melt_off_glacier_daily", "melt_on_glacier_daily", "liq_prcp_off_glacier_daily",
+             "liq_prcp_on_glacier_daily", "snowfall_on_glacier_daily"]
 
 def create_OGGM_climate(prcp, temp, hgt, output_path, y0=None, y1=None):
     """
@@ -45,9 +45,10 @@ def create_OGGM_climate(prcp, temp, hgt, output_path, y0=None, y1=None):
     hgt = hgt.rename({'y':'lat', 'x':'lon', 'band_data':'hgt'})
     hgt = hgt.sel(band=1, drop=True).drop_vars("spatial_ref")
 
-    # Ensure spatial alignment
-    hgt = hgt.regrid.linear(prcp)
-    temp = temp.regrid.linear(prcp)
+    # Ensure spatial alignment (linear interpolation to the precipitation grid; plain xarray,
+    # so this also runs in the OGGM env, which has no xarray-regrid)
+    hgt = hgt.interp(lat=prcp.lat, lon=prcp.lon, method="linear")
+    temp = temp.interp(lat=prcp.lat, lon=prcp.lon, method="linear")
     
     # Merge datasets
     ds = xr.merge([prcp, temp, hgt]).rename({'tas': 'temp'})
@@ -66,44 +67,50 @@ def create_OGGM_climate(prcp, temp, hgt, output_path, y0=None, y1=None):
 def hydro_variables(ds: xr.Dataset, only_melt: bool = False) -> xr.Dataset:
     """
     Calculate hydrological variables from glacier model output.
-    This function computes glacier melt and optionally glacier runoff from daily
-    glacier model data, converting from mm/day to m³/s.
+    This function computes glacier melt, on-glacier snowfall and optionally glacier
+    runoff from daily glacier model data, converting from kg/day to m³/s.
     Parameters
     ----------
     ds : xr.Dataset
-        Input dataset containing glacier model variables:
-        - melt_on_glacier_daily: Daily melt on glacier surface (mm/day)
-        - melt_off_glacier_daily: Daily melt off glacier surface (mm/day)
-        - liq_prcp_on_glacier_daily: Daily liquid precipitation on glacier (mm/day)
-        - liq_prcp_off_glacier_daily: Daily liquid precipitation off glacier (mm/day)
+        Input dataset containing glacier model variables (kg/day per glacier):
+        - melt_on_glacier_daily: Daily melt on glacier surface (snow + ice)
+        - melt_off_glacier_daily: Daily melt off glacier surface
+        - liq_prcp_on_glacier_daily: Daily liquid precipitation on glacier
+        - liq_prcp_off_glacier_daily: Daily liquid precipitation off glacier
+        - snowfall_on_glacier_daily: Daily snowfall on glacier surface
     only_melt : bool, optional
-        If True, only compute and return glacier_melt variable.
-        If False, compute both glacier_melt and glacier_runoff.
-        Default is False.
+        If True, return only the inputs of the hydrological model (glacier_melt and
+        glacier_snow). If False, also compute glacier_runoff. Default is False.
     Returns
     -------
     xr.Dataset
-        Dataset containing one or both of the following variables:
+        Dataset containing the following variables:
         - glacier_melt: Glacier melt rate (m³/s), clipped to non-negative values
-        - glacier_runoff: Total glacier runoff including melt and liquid precipitation
-          from both on and off glacier areas (m³/s), clipped to non-negative values
+        - glacier_snow: On-glacier snowfall (m³/s), clipped to non-negative values.
+          Glacier melt includes the melt of this snow, so it is subtracted from the
+          precipitation of the conceptual model to avoid counting it twice.
+        - glacier_runoff (only if only_melt=False): Total glacier runoff including melt
+          and liquid precipitation from both on and off glacier areas (m³/s), clipped
+          to non-negative values
     Notes
     -----
-    Conversion factor: 1e-3 / 86400 converts mm/day to m³/s
-    (mm to m: 1e-3, day to seconds: 1/86400)
+    Conversion factor: 1e-3 / 86400 converts kg/day (of water) to m³/s
+    (kg to m³: 1e-3, day to seconds: 1/86400)
     """
     ds["glacier_melt"] = ds.melt_on_glacier_daily * 1e-3 / 86400  # m3/s
     ds["glacier_melt"] = ds.glacier_melt.clip(0)  # m3/s
+    ds["glacier_snow"] = ds.snowfall_on_glacier_daily * 1e-3 / 86400  # m3/s
+    ds["glacier_snow"] = ds.glacier_snow.clip(0)  # m3/s
 
     if only_melt:
-        return ds[["glacier_melt"]]
-    
+        return ds[["glacier_melt", "glacier_snow"]]
+
     else:
         ds["glacier_runoff"] = (
             (ds.melt_off_glacier_daily + ds.melt_on_glacier_daily +
                 ds.liq_prcp_off_glacier_daily + ds.liq_prcp_on_glacier_daily) * 1e-3) / 86400  # m3/s
         ds["glacier_runoff"] = ds.glacier_runoff.clip(0)  # m3/s
-        return ds[["glacier_melt", "glacier_runoff"]]
+        return ds[["glacier_melt", "glacier_snow", "glacier_runoff"]]
     
 
 def julian_to_gregorian(year, julian_day):
@@ -183,9 +190,9 @@ def aggregate_data_by_basin(oggm_ts, basin_lookup):
         rgi_ids = basin_glaciers.index.tolist()
         fractions = basin_glaciers['overlap_fraction'].values
         
-        # Select data for these glaciers
+        # Select data for these glaciers and weight every variable by its overlap fraction
         basin_data = oggm_ts.sel(rgi_id=rgi_ids)
-        basin_data["glacier_melt"] = basin_data["glacier_melt"] * xr.DataArray(fractions, dims=['rgi_id'])
+        basin_data = basin_data * xr.DataArray(fractions, dims=['rgi_id'])
         
         # Sum and expand dimensions
         basin_sum = basin_data.sum(dim='rgi_id')
