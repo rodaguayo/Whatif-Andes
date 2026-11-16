@@ -65,6 +65,7 @@ def process_outputs(path_run, period, best_epoch, metrics=None):
     import pandas as pd
     from tqdm import tqdm
     from neuralhydrology.evaluation import get_tester
+    import src.conceptual_models  # noqa: F401  registers the SHM_glacier* conceptual models
     from neuralhydrology.utils.config import Config
 
     time_series = []
@@ -133,8 +134,8 @@ def aggregate_by_main_basin(data, shape):
         basin_area_sum = xr.DataArray(basin_area_sum.values, coords={"main_bas": basin_area_sum.index})
         basin_area_sum = basin_area_sum.rename({"main_bas": "gauge_id"})
         data = (data * 1000 * 86400) / (basin_area_sum * 1e6)
-        return data 
-    
+        return data
+
 
 def extract_attributes(raster, shapefile, attribute_name, fun="mean"):
     """
@@ -213,7 +214,8 @@ def extract_timeseries(raster, shapefile, time_period=None):
     
     weightmap = xa.pixel_overlaps(raster, shapefile, impl='for_loop', silent=True)
     ds = xa.aggregate(raster, weightmap, impl="numba", silent=True)
-    ds = ds.to_dataframe().astype("float32")[raster.name]
+    # select the variable first: the polygon columns (e.g. string gauge ids) cannot be cast
+    ds = ds.to_dataframe()[raster.name].astype("float32")
     ds = ds.round(3)
     ds = ds.unstack('poly_idx')
     ds.columns = shapefile.gauge_id
