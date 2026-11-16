@@ -36,6 +36,7 @@ zstd = ">=1.5.7,<2"
 h5py = ">=3.16.0,<4"
 h5netcdf = ">=1.8.1,<2"
 dask = ">=2026.3.0,<2027"
+nbstripout = ">=0.9.1,<0.10"
 
 [pypi-dependencies]
 neuralhydrology = "*"

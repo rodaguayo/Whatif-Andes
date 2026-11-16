@@ -335,6 +335,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/nbconvert-core-7.17.1-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nbconvert-pandoc-7.17.1-h08b4883_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nbformat-5.10.4-pyhd8ed1ab_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/nbstripout-0.9.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nest-asyncio2-1.7.2-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/networkx-3.6.1-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/odc-geo-0.5.1-pyhd8ed1ab_0.conda
@@ -5558,6 +5559,19 @@ packages:
   - pkg:pypi/nbformat?source=hash-mapping
   size: 100945
   timestamp: 1733402844974
+- conda: https://conda.anaconda.org/conda-forge/noarch/nbstripout-0.9.1-pyhd8ed1ab_0.conda
+  sha256: e5029a1ca06d5f02c9366ec8686f64c942d77f297bfa90a0a8215083d85a7a01
+  md5: 948b10290b9f4ebbb26de6da5c6b7c51
+  depends:
+  - nbformat
+  - python >=3.10
+  license: MIT
+  license_family: MIT
+  purls:
+  - pkg:pypi/nbstripout?source=hash-mapping
+  run_exports: {}
+  size: 24331
+  timestamp: 1771778886946
 - conda: https://conda.anaconda.org/conda-forge/noarch/nest-asyncio2-1.7.2-pyhcf101f3_0.conda
   sha256: e6768ceef038f4d7e083de7e393f5dd7d672b937e2bda570b740f6399b686689
   md5: fcd832bfd4749e9b246112b6894f97fc
