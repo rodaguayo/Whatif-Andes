@@ -64,6 +64,61 @@ def create_OGGM_climate(prcp, temp, hgt, output_path, y0=None, y1=None):
     # Save to NetCDF
     ds.to_netcdf(output_path)
 
+
+def sync_gcm_ref_hgt(gdir, historical_file="climate_historical_daily_ERA5.nc",
+                     gcm_pattern="gcm_data_daily_*.nc"):
+    """
+    Copy the calibrated reference height of the historical climate file to the GCM files.
+
+    When no melt factor within its bounds matches the geodetic mass balance,
+    MBsandbox's ``melt_f_calib_geod_prep_inversion`` shifts ``ref_hgt`` (a temperature
+    correction) and writes it only into the historical climate file. The GCM files keep the
+    uncorrected height of the grid cell, and ``run_from_climate_data_TIModel`` does not check
+    ``gcm_data``, so without this step the future runs use a different temperature than the
+    one the glacier was calibrated with (up to several °C).
+
+    TIModel reads ``ref_hgt`` from the file attributes, and calibration restarts from
+    ``uncorrected_ref_hgt``, so this is idempotent. Run it after calibration and before any
+    run that reads ``gcm_data``. Meant for ``workflow.execute_entity_task``.
+
+    Parameters
+    ----------
+    gdir : oggm.GlacierDirectory
+        Glacier directory.
+    historical_file : str, optional
+        Name of the calibrated historical climate file in the glacier directory.
+    gcm_pattern : str, optional
+        Glob pattern of the GCM climate files in the glacier directory.
+
+    Returns
+    -------
+    float
+        The shift applied to the GCM files (corrected minus uncorrected height, m). NaN if the
+        historical file is missing or a GCM file has a different grid-cell height (that file
+        is then left untouched); it does not raise, so one glacier cannot stop a workflow.
+    """
+    from pathlib import Path
+    import netCDF4
+
+    hist_path = Path(gdir.dir) / historical_file
+    if not hist_path.exists():
+        return np.nan
+    with netCDF4.Dataset(hist_path) as nc:
+        ref_hgt = float(nc.ref_hgt)
+        uncorrected = float(getattr(nc, "uncorrected_ref_hgt", nc.ref_hgt))
+
+    shift = ref_hgt - uncorrected
+    for path in sorted(Path(gdir.dir).glob(gcm_pattern)):
+        with netCDF4.Dataset(path, "a") as nc:
+            gcm_uncorrected = float(getattr(nc, "uncorrected_ref_hgt", nc.ref_hgt))
+            if not np.isclose(gcm_uncorrected, uncorrected, atol=1):
+                shift = np.nan
+                continue
+            nc.ref_hgt = ref_hgt
+            nc.uncorrected_ref_hgt = uncorrected
+
+    return shift
+
 def hydro_variables(ds: xr.Dataset, only_melt: bool = False) -> xr.Dataset:
     """
     Calculate hydrological variables from glacier model output.
