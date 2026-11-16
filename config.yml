@@ -11,9 +11,16 @@ glacier:
   rgi_version: 60
   
 dir:
-  andeangc: "../AndeanGC/data/v12"
+  andeangc: "../AndeanGC/data/v121"
   pipeline: "~/Pipeline/what-if-andes/"
   data: "~/Datasets"
+
+climate:
+  # ERA5 precipitation corrected with CHELSA V2.1 monthly factors, relative to dir.data
+  prcp_file: "era5/prcp_ERA5corr_1960_2025.nc"
+  prcp_raw_file: "era5/prcp_ERA5_1960_2025.nc"
+  # GDPCIR CMIP6 files (bias-corrected to raw ERA5) with the same factors applied to pr
+  cmip6_dir: "cmip6_corr"
 
 time:
   ref_start: "2000-01-01"
