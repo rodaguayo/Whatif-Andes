@@ -15,7 +15,8 @@ import xarray as xr
 variables = ["melt_off_glacier_daily", "melt_on_glacier_daily", "liq_prcp_off_glacier_daily",
              "liq_prcp_on_glacier_daily", "snowfall_on_glacier_daily"]
 
-def create_OGGM_climate(prcp, temp, hgt, output_path, y0=None, y1=None):
+def create_OGGM_climate(prcp, temp, hgt, output_path, y0=None, y1=None, grid=None,
+                        hgt_cell_mean=False):
     """
     Create a NetCDF file from precipitation, temperature, and elevation datasets.
 
@@ -26,6 +27,15 @@ def create_OGGM_climate(prcp, temp, hgt, output_path, y0=None, y1=None):
     output_path (str): Path to save the NetCDF file.
     y0 (int, optional): Start year for subsetting the time period.
     y1 (int, optional): End year for subsetting the time period.
+    grid (str, optional): Path to a file with lat/lon coordinates (e.g. a GCM file). If given,
+        all variables are linearly interpolated to that grid instead of the precipitation grid.
+        The GDPCIR grid is shifted half a cell from ERA5, so each value becomes the mean of the
+        four surrounding ERA5 cells, which is the ERA5 reference GDPCIR was bias-corrected
+        against. Historical and GCM climate then share the same cells and reference height.
+    hgt_cell_mean (bool, optional): If True, the reference height of each cell is the mean
+        DEM elevation over the cell (sea = 0 m), i.e. the smooth terrain the gridded temperature
+        represents. If False, the DEM value at the cell centre. The DEM pixels must nest in the
+        cells.
     """
     
     # Load datasets from paths
@@ -47,13 +57,32 @@ def create_OGGM_climate(prcp, temp, hgt, output_path, y0=None, y1=None):
 
     # Ensure spatial alignment (linear interpolation to the precipitation grid; plain xarray,
     # so this also runs in the OGGM env, which has no xarray-regrid)
-    hgt = hgt.interp(lat=prcp.lat, lon=prcp.lon, method="linear")
+    if grid is not None:
+        with xr.open_dataset(grid) as g:
+            lat, lon = g.lat.values, g.lon.values
+        prcp = prcp.interp(lat=lat, lon=lon, method="linear")
+    if hgt_cell_mean:
+        dlat = abs(float(prcp.lat[1] - prcp.lat[0]))
+        dlon = abs(float(prcp.lon[1] - prcp.lon[0]))
+        dem = hgt.hgt.sortby("lat").sortby("lon")
+        dem = dem.sel(lat=slice(float(prcp.lat.min()) - dlat / 2, float(prcp.lat.max()) + dlat / 2),
+                      lon=slice(float(prcp.lon.min()) - dlon / 2, float(prcp.lon.max()) + dlon / 2))
+        n = int(round(dlat / abs(float(dem.lat[1] - dem.lat[0]))))
+        m = int(round(dlon / abs(float(dem.lon[1] - dem.lon[0]))))
+        if dem.sizes["lat"] != n * prcp.sizes["lat"] or dem.sizes["lon"] != m * prcp.sizes["lon"]:
+            raise ValueError("The DEM pixels do not nest in the climate grid cells")
+        dem = dem.fillna(0).coarsen(lat=n, lon=m).mean()
+        hgt = dem.interp(lat=prcp.lat, lon=prcp.lon, method="nearest").to_dataset(name="hgt")
+    else:
+        hgt = hgt.interp(lat=prcp.lat, lon=prcp.lon, method="linear")
     temp = temp.interp(lat=prcp.lat, lon=prcp.lon, method="linear")
     
     # Merge datasets
     ds = xr.merge([prcp, temp, hgt]).rename({'tas': 'temp'})
     ds = ds.rename({'lat':'latitude', 'lon':'longitude'})
     ds["hgt"] = ds["hgt"].fillna(0)
+    ds["prcp"] = ds["prcp"].astype("float32")  # interp returns float64 (file twice as large)
+    ds["temp"] = ds["temp"].astype("float32")
 
     # Assign units
     ds.prcp.attrs['units'] = "mm"
@@ -118,6 +147,8 @@ def sync_gcm_ref_hgt(gdir, historical_file="climate_historical_daily_ERA5.nc",
             nc.uncorrected_ref_hgt = uncorrected
 
     return shift
+
+
 
 def hydro_variables(ds: xr.Dataset, only_melt: bool = False) -> xr.Dataset:
     """
