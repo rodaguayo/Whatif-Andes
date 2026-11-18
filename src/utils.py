@@ -5,6 +5,7 @@ This module provides functions for:
 - Converting pickle files to different output formats
 - Aggregating data by main basin
 - Extracting attributes from rasters
+- Computing ERA5 climatic attributes of basins
 - Extracting time series from rasters
 - Assigning geographic regions based on latitude bands
 """
@@ -178,6 +179,73 @@ def extract_attributes(raster, shapefile, attribute_name, fun="mean"):
     shape = shapefile.join(ds[attribute_name], on="gauge_id")
 
     return shape
+
+
+def climate_attributes(
+    stack,
+    polygons,
+    ref_period: tuple[str, str] = ("1990-01-01", "2019-12-31"),
+):
+    """
+    ERA5 climatic attributes of each basin, with the AndeanGC v1.2.1 definitions.
+
+    Precipitation is the CHELSA V2.1-corrected ERA5 (``config.yml:climate.prcp_file``), built by
+    AndeanGC (``tools/correct_era5_chelsa.py``, ``andeangc.precip_correction``). AndeanGC
+    publishes the same attributes for the gauges with an ``_ERA5CHELSA`` suffix on the
+    precipitation-based ones; here they keep the ``_ERA5`` suffix (renamed in
+    ``src.lstm_inputs.build_attributes``).
+
+    Parameters
+    ----------
+    stack : xr.Dataset
+        Daily ``prcp``, ``tasmax``, ``tasmin`` and ``ep`` with ``lat``/``lon`` dims.
+    polygons : gpd.GeoDataFrame
+        Basin polygons with a ``gauge_id`` column.
+    ref_period : tuple of str, optional
+        Period of the climatology, by default 1990-2019 (as in AndeanGC v1.2.1).
+
+    Returns
+    -------
+    pd.DataFrame
+        ``prcp_mean_ERA5``, ``prcp_pci_ERA5``, ``pet_mean_ERA5``, ``aridity_ERA5``,
+        ``solid_prcp_ERA5``, ``frac_snow_ERA5``, ``low_prec_freq_ERA5`` and
+        ``high_prec_freq_ERA5``, indexed by ``gauge_id``.
+    """
+    import pandas as pd
+    import xarray as xr
+
+    def zonal(raster, name):
+        return extract_attributes(raster, polygons, name, fun="mean").set_index("gauge_id")[name]
+
+    polygons = polygons[["gauge_id", "geometry"]]  # the attribute names may already be columns
+    stack = stack.sel(time=slice(*ref_period))
+    prcp = stack.prcp
+    tas = (stack.tasmax + stack.tasmin) / 2
+    out = {}
+
+    out["prcp_mean_ERA5"] = zonal(prcp.resample(time="YS").sum().mean("time"), "prcp_mean_ERA5")
+
+    # precipitation concentration index (Oliver 1980) of the mean monthly precipitation
+    monthly = prcp.resample(time="MS").sum().groupby("time.month").mean()
+    pci = (monthly**2).sum("month") * 100 / monthly.sum("month") ** 2
+    out["prcp_pci_ERA5"] = zonal(pci, "prcp_pci_ERA5")
+
+    out["pet_mean_ERA5"] = zonal(stack.ep.resample(time="YS").sum().mean("time"), "pet_mean_ERA5")
+    out["aridity_ERA5"] = out["pet_mean_ERA5"] / out["prcp_mean_ERA5"]
+
+    # solid precipitation: days with mean air temperature <= 0 degC
+    solid = xr.where(tas > 0, 0, prcp).resample(time="YS").sum().mean("time")
+    out["solid_prcp_ERA5"] = zonal(solid, "solid_prcp_ERA5")
+    out["frac_snow_ERA5"] = out["solid_prcp_ERA5"] / out["prcp_mean_ERA5"]
+
+    # dry (< 1 mm) and high-precipitation (> 5x the mean) days per year (Addor et al. 2017)
+    n_years = prcp.sizes["time"] / 365.25
+    out["low_prec_freq_ERA5"] = zonal((prcp < 1).sum("time") / n_years, "low_prec_freq_ERA5")
+    high = (prcp > prcp.mean("time") * 5).sum("time") / n_years
+    out["high_prec_freq_ERA5"] = zonal(high, "high_prec_freq_ERA5")
+
+    return pd.DataFrame(out)
+
 
 def extract_timeseries(raster, shapefile, time_period=None):
     """
