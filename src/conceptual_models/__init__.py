@@ -12,6 +12,7 @@ Import it before ``start_run`` or ``get_tester``, in the same process::
 
 from neuralhydrology.modelzoo.hybridmodel import HybridModel
 
+import src.metrics  # noqa: F401  the KGE metric becomes KGE' (2012) wherever these models are run
 from src.conceptual_models.shm_glacier_snow_routing import SHMGlacierSnowRouting
 
 CONCEPTUAL_MODELS = {
